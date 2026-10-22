@@ -1,0 +1,23 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Local config & drafts
+config.json
+*.tmp
+*-plain/
+*.log
+
+# Environments
+.env
+.venv/
+env/
+venv/
+
+# OS / Editor files
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
