@@ -29,18 +29,77 @@ ICON_PNG = CURRENT_DIR / "icon.png"
 if not ICON_PNG.exists():
     ICON_PNG = APP_DIR / "icon.png"
 
-def find_jianying_dir():
-    """自动寻找包含 videoeditor.dll 的剪映安装目录"""
-    # 1. 尝试从运行中剪映进程获取安装路径
+def _dir_of_running_process(name_prefix):
+    """在不启动任何子进程（不会闪出控制台窗口）的前提下，
+    从正在运行的进程里取出 exe 所在目录。纯 Win32 API 实现。"""
+    import ctypes
+    from ctypes import wintypes
+
+    TH32CS_SNAPPROCESS = 0x00000002
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+    class PROCESSENTRY32W(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.c_void_p),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", wintypes.WCHAR * 260),
+        ]
+
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreateToolhelp32Snapshot.restype = ctypes.c_void_p
+    k32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    k32.Process32FirstW.argtypes = [ctypes.c_void_p, ctypes.POINTER(PROCESSENTRY32W)]
+    k32.Process32NextW.argtypes = [ctypes.c_void_p, ctypes.POINTER(PROCESSENTRY32W)]
+    k32.OpenProcess.restype = ctypes.c_void_p
+    k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    k32.QueryFullProcessImageNameW.argtypes = [
+        ctypes.c_void_p, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)
+    ]
+    k32.CloseHandle.argtypes = [ctypes.c_void_p]
+
+    invalid = ctypes.c_void_p(-1).value
+    snap = k32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+    if not snap or snap == invalid:
+        return None
+
     try:
-        out = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", "(Get-Process -Name 'Jianying*' -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Path)"],
-            capture_output=True, text=True, timeout=2
-        )
-        if out.stdout.strip():
-            exe_dir = Path(out.stdout.strip()).parent
-            if (exe_dir / "videoeditor.dll").exists():
-                return str(exe_dir)
+        entry = PROCESSENTRY32W()
+        entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+        ok = k32.Process32FirstW(snap, ctypes.byref(entry))
+        prefix = name_prefix.lower()
+        while ok:
+            if entry.szExeFile.lower().startswith(prefix):
+                h = k32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, entry.th32ProcessID)
+                if h:
+                    try:
+                        buf = ctypes.create_unicode_buffer(32768)
+                        size = wintypes.DWORD(len(buf))
+                        if k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)):
+                            exe = Path(buf.value)
+                            if exe.exists():
+                                return exe.parent
+                    finally:
+                        k32.CloseHandle(h)
+            ok = k32.Process32NextW(snap, ctypes.byref(entry))
+    finally:
+        k32.CloseHandle(snap)
+    return None
+
+
+def find_jianying_dir():
+    """自动寻找包含 videoeditor.dll 的剪映安装目录（全程不启动子进程）"""
+    # 1. 剪映正在运行时，直接读它自己的进程路径
+    try:
+        exe_dir = _dir_of_running_process("Jianying")
+        if exe_dir and (exe_dir / "videoeditor.dll").exists():
+            return str(exe_dir)
     except Exception:
         pass
 
@@ -68,7 +127,18 @@ def find_jianying_dir():
 
     return str(apps_dir)
 
-JY_INSTALL_DIR = find_jianying_dir()
+_jy_dir_cache = None
+
+
+def get_jy_install_dir(refresh=False):
+    """懒加载 + 缓存剪映安装目录，避免启动时做无谓探测"""
+    global _jy_dir_cache
+    if not refresh and _jy_dir_cache:
+        cached = Path(_jy_dir_cache)
+        if cached.is_dir() and (cached / "videoeditor.dll").exists():
+            return _jy_dir_cache
+    _jy_dir_cache = find_jianying_dir()
+    return _jy_dir_cache
 
 def fmt_time(us):
     ms = int(us / 1000)
@@ -126,32 +196,37 @@ def get_project_subtitles(draft_dir: Path):
     if not JY_DRAFTC_EXE.exists():
         raise FileNotFoundError(f"缺少解密组件: {JY_DRAFTC_EXE}")
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        cmd = [
-            str(JY_DRAFTC_EXE),
-            "-dc",
-            str(draft_dir),
-            "-o",
-            temp_dir,
-            "--jy-dir",
-            JY_INSTALL_DIR
-        ]
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        res = subprocess.run(cmd, capture_output=True, text=True, startupinfo=startupinfo)
-        if res.returncode != 0:
-            raise RuntimeError(f"草稿解密失败: {res.stderr or res.stdout}")
+    # CREATE_NO_WINDOW：确保解密封装进程不弹出任何控制台窗口
+    no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
 
-        target_json = None
-        for root, _, files in os.walk(temp_dir):
-            if "draft_content.json" in files:
-                target_json = Path(root) / "draft_content.json"
-                break
+    def _run_decrypt(jy_dir):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cmd = [
+                str(JY_DRAFTC_EXE),
+                "-dc",
+                str(draft_dir),
+                "-o",
+                temp_dir,
+                "--jy-dir",
+                jy_dir,
+            ]
+            res = subprocess.run(
+                cmd, capture_output=True, text=True,
+                creationflags=no_window,
+            )
+            if res.returncode != 0:
+                raise RuntimeError(f"草稿解密失败: {res.stderr or res.stdout}")
 
-        if not target_json or not target_json.exists():
+            for root, _, files in os.walk(temp_dir):
+                if "draft_content.json" in files:
+                    return extract_subtitles_from_json(Path(root) / "draft_content.json")
             raise FileNotFoundError("未能提取解密后的草稿内容")
 
-        return extract_subtitles_from_json(target_json)
+    try:
+        return _run_decrypt(get_jy_install_dir())
+    except Exception:
+        # 缓存的安装目录可能已失效（剪映升级 / 重装），重新探测一次
+        return _run_decrypt(get_jy_install_dir(refresh=True))
 
 
 class SubtitleExporterApp(tk.Tk):
