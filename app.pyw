@@ -21,6 +21,14 @@ JY_DRAFTC_EXE = CURRENT_DIR / "bin" / "jy-draftc.exe"
 if not JY_DRAFTC_EXE.exists():
     JY_DRAFTC_EXE = APP_DIR / "bin" / "jy-draftc.exe"
 
+# 应用图标（优先取工具目录，其次取 AppData 缓存）
+ICON_ICO = CURRENT_DIR / "icon.ico"
+if not ICON_ICO.exists():
+    ICON_ICO = APP_DIR / "icon.ico"
+ICON_PNG = CURRENT_DIR / "icon.png"
+if not ICON_PNG.exists():
+    ICON_PNG = APP_DIR / "icon.png"
+
 def find_jianying_dir():
     """自动寻找包含 videoeditor.dll 的剪映安装目录"""
     # 1. 尝试从运行中剪映进程获取安装路径
@@ -167,9 +175,24 @@ class SubtitleExporterApp(tk.Tk):
         self.selected_project = None
         self.export_dir = self._load_export_dir()
 
+        self._apply_icon()
         self._setup_style()
         self._build_ui()
         self.load_projects()
+
+    def _apply_icon(self):
+        """设置窗口标题栏、任务栏与所有子窗口图标"""
+        try:
+            if ICON_ICO.exists():
+                self.iconbitmap(default=str(ICON_ICO))
+        except Exception:
+            pass
+        try:
+            if ICON_PNG.exists():
+                self._icon_photo = tk.PhotoImage(file=str(ICON_PNG))
+                self.iconphoto(True, self._icon_photo)
+        except Exception:
+            pass
 
     def _setup_style(self):
         style = ttk.Style(self)
@@ -402,6 +425,12 @@ class SubtitleExporterApp(tk.Tk):
         dlg.configure(bg="#18181c")
         dlg.transient(self)
         dlg.grab_set()
+        # 子窗口同步应用图标
+        try:
+            if ICON_ICO.exists():
+                dlg.iconbitmap(str(ICON_ICO))
+        except Exception:
+            pass
 
         # 居中在主窗口中间显示
         self.update_idletasks()

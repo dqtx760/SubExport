@@ -1,4 +1,9 @@
-# 🎬 剪映 SRT 字幕导出工具 (JianYing Subtitle Exporter)
+<div align="center">
+
+<img src="icon.png" width="128" alt="剪映SRT字幕导出">
+
+# 剪映 SRT 字幕导出工具
+### JianYing Subtitle Exporter
 
 > **为剪辑师与创作者打造的轻量辅助小工具：无需开通剪映 VIP，一键秒级提取并导出剪映识别字幕为标准 `.srt` 文件或纯文本。**
 
@@ -6,6 +11,8 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Author](https://img.shields.io/badge/Author-DQTX760-orange?logo=github)](https://github.com/DQTX760)
+
+</div>
 
 ---
 
@@ -52,7 +59,7 @@
 
 1. **创建桌面快捷图标（只需做一次）**：
    * 进入解压后的文件夹，双击运行 **`创建桌面快捷方式.bat`**。
-   * 你的桌面上会自动生成一个名为 **`剪映SRT字幕导出`** 的快捷方式（带剪映官方图标）。
+   * 你的桌面上会自动生成一个名为 **`剪映SRT字幕导出`** 的快捷方式（自带工具专属图标）。
    
 2. **平时常规剪辑流程**：
    * **在剪映中**：导入视频，点击【文本】➔【智能字幕】完成语音识别。
