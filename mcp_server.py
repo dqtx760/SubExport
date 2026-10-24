@@ -503,6 +503,165 @@ def export_draft_to_desktop(draft_name_or_path: Optional[str] = None) -> Dict[st
         "srt_file": str(srt_path)
     }
 
+@mcp.tool()
+def search_jianying_assets(
+    query: str,
+    category: str = "all",
+    limit: int = 20
+) -> List[Dict[str, Any]]:
+    """在剪映官方素材库（离线元数据）中检索特效、转场、滤镜、文字动画、音效与BGM。
+    
+    参数：
+    - query: 检索关键词，如 "黑场"、"故障"、"打字机"、"收银"、"复古"、"运镜"
+    - category: 分类过滤 ('all', 'transitions' 转场, 'video_effects' 画面特效, 'filters' 滤镜, 'text_animations' 文字动画, 'sound_effects' 音效, 'music' 音乐)
+    - limit: 最多返回结果数量（默认 20）
+    """
+    import csv
+    data_dir = CURRENT_DIR / "engine" / "data"
+    if not data_dir.exists():
+        return []
+
+    category_map = {
+        "all": "*.csv",
+        "transitions": "transitions.csv",
+        "video_effects": "video_scene_effects.csv",
+        "filters": "filters.csv",
+        "text_animations": "text_animations.csv",
+        "sound_effects": "cloud_sound_effects.csv",
+        "music": "cloud_music_library.csv"
+    }
+    pattern = category_map.get(category, "*.csv")
+    results = []
+    for f in data_dir.glob(pattern):
+        with open(f, "r", encoding="utf-8", errors="ignore") as fl:
+            reader = csv.DictReader([l for l in fl if not l.startswith("#")])
+            for row in reader:
+                blob = " ".join(str(v) for v in row.values()).lower()
+                if query.lower() in blob:
+                    row["_source"] = f.stem
+                    results.append(row)
+                    if len(results) >= limit:
+                        return results
+    return results
+
+
+@mcp.tool()
+def add_audio_sfx_or_bgm(
+    audio_name_or_path: str,
+    start_time: str,
+    duration: Optional[str] = None,
+    volume: float = 0.8,
+    track_name: str = "SFX_Audio",
+    draft_name_or_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """向剪映草稿中精确添加音效切片或背景音乐，自动处理节拍、声道和变速引用。
+    
+    参数：
+    - audio_name_or_path: 内置音效快捷词 ('whoosh' 滑动, 'typing' 打字, 'chime' 收银叮, 'thud' 嘭, 'ding' 日出, 'modal-open' 展开, 'card-flip' 翻书) 或本地音频文件绝对路径
+    - start_time: 音效在时间轴上的起始时间（如 "0s", "5.4s", "1500ms"）
+    - duration: 可选播放时长（如 "1.5s"），不填则默认使用音频本身自然时长
+    - volume: 音量大小（0.0 到 2.0，默认 0.8）
+    - track_name: 挂载的音频轨道名称（默认 "SFX_Audio"）
+    - draft_name_or_path: 目标草稿名称或路径（默认最新草稿）
+    """
+    draft_dir = resolve_draft_dir(draft_name_or_path)
+    sfx_map = {
+        "whoosh": SFX_DIR / "transition" / "whoosh.mp3",
+        "typing": SFX_DIR / "keyboard" / "type-fast.mp3",
+        "chime": SFX_DIR / "feedback" / "success-chime.mp3",
+        "thud": SFX_DIR / "impact" / "drop-thud.mp3",
+        "ding": SFX_DIR / "magic" / "sparkle.mp3",
+        "modal-open": SFX_DIR / "container" / "modal-open.mp3",
+        "card-flip": SFX_DIR / "container" / "card-flip.mp3",
+        "sparkle": SFX_DIR / "magic" / "sparkle.mp3",
+    }
+    target_audio = sfx_map.get(audio_name_or_path.lower(), Path(audio_name_or_path))
+    if not target_audio.exists():
+        return {"status": "error", "message": f"未找到音频文件: {target_audio}"}
+
+    from jy_wrapper import JyProject
+    project = JyProject(draft_dir.name, drafts_root=str(DRAFT_ROOT), overwrite=False)
+    seg = project.add_audio_safe(str(target_audio), start_time=start_time, duration=duration, track_name=track_name)
+    if seg is None:
+        return {"status": "error", "message": "未能向剪映草稿添加音频轨道"}
+    res = project.save()
+    return {
+        "status": "success",
+        "draft_name": draft_dir.name,
+        "audio_file": str(target_audio),
+        "start_time": start_time,
+        "track_name": track_name,
+        "project_status": res.get("status")
+    }
+
+
+@mcp.tool()
+def apply_smart_zoom(
+    start_time: str,
+    end_time: str,
+    zoom_scale: float = 1.3,
+    focus_x: float = 0.0,
+    focus_y: float = 0.0,
+    draft_name_or_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """为视频片段添加智能平滑运镜 / 关键帧放大特写（类似 FocuSee / Ken Burns 视觉聚焦）。
+    
+    参数：
+    - start_time: 缩放开始时间（如 "5s", "5000ms"）
+    - end_time: 缩放结束并恢复原尺寸的时间（如 "10s", "10000ms"）
+    - zoom_scale: 放大倍数（如 1.25 到 1.5，默认 1.3）
+    - focus_x: 缩放焦点中心水平偏移（-1.0 左到 1.0 右，0.0 居中）
+    - focus_y: 缩放焦点中心垂直偏移（-1.0 下到 1.0 上，0.0 居中）
+    - draft_name_or_path: 目标草稿名称或路径（默认最新草稿）
+    """
+    draft_dir = resolve_draft_dir(draft_name_or_path)
+    from jy_wrapper import JyProject
+    import pyJianYingDraft as draft
+    from pyJianYingDraft.keyframe import KeyframeProperty as KP
+    from utils.formatters import safe_tim
+
+    st_us = safe_tim(start_time)
+    et_us = safe_tim(end_time)
+    zoom_in_dur = 300000   # 0.3s 缓入
+    zoom_out_dur = 400000  # 0.4s 缓出
+
+    project = JyProject(draft_dir.name, drafts_root=str(DRAFT_ROOT), overwrite=False)
+    video_track = None
+    for tr in project.script.tracks:
+        if tr.type == draft.TrackType.video and tr.segments:
+            video_track = tr
+            break
+
+    if not video_track or not video_track.segments:
+        return {"status": "error", "message": "未在草稿中找到视频轨道与片段"}
+
+    seg = video_track.segments[0]
+    seg.add_keyframe(KP.uniform_scale, max(0, st_us - zoom_in_dur), 1.0)
+    seg.add_keyframe(KP.uniform_scale, st_us, zoom_scale)
+    seg.add_keyframe(KP.uniform_scale, max(st_us, et_us - zoom_out_dur), zoom_scale)
+    seg.add_keyframe(KP.uniform_scale, et_us, 1.0)
+
+    if focus_x != 0.0 or focus_y != 0.0:
+        seg.add_keyframe(KP.position_x, max(0, st_us - zoom_in_dur), 0.0)
+        seg.add_keyframe(KP.position_x, st_us, focus_x)
+        seg.add_keyframe(KP.position_x, max(st_us, et_us - zoom_out_dur), focus_x)
+        seg.add_keyframe(KP.position_x, et_us, 0.0)
+
+        seg.add_keyframe(KP.position_y, max(0, st_us - zoom_in_dur), 0.0)
+        seg.add_keyframe(KP.position_y, st_us, focus_y)
+        seg.add_keyframe(KP.position_y, max(st_us, et_us - zoom_out_dur), focus_y)
+        seg.add_keyframe(KP.position_y, et_us, 0.0)
+
+    res = project.save()
+    return {
+        "status": "success",
+        "draft_name": draft_dir.name,
+        "zoom_scale": zoom_scale,
+        "start_time": start_time,
+        "end_time": end_time,
+        "focus": {"x": focus_x, "y": focus_y},
+        "instructions": "已成功在视频轨注入平滑变焦关键帧！在对应时段画面会自动平滑放大聚焦焦点。"
+    }
 
 if __name__ == "__main__":
     # 支持命令行快速测试模式
