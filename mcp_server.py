@@ -272,6 +272,7 @@ def update_draft_subtitles(
     corrected_lines: List[str],
     draft_name_or_path: Optional[str] = None,
     style_preset: Optional[str] = "yansong_shadow",
+    voice_volume_db: Optional[float] = 7.0,
     create_clone: bool = False,
     export_to_desktop: bool = True
 ) -> Dict[str, Any]:
@@ -284,8 +285,8 @@ def update_draft_subtitles(
         * 'white_border_black': 经典醒目白色字加黑色描边
         * 'yellow_highlight': 爆款短视频亮黄字体黑色描边
         * 'clean_white': 极简无边框高清白色字体
+    - voice_volume_db: 人声音量增益 (dB)，默认 7.0 dB (标准口播音量，不大不小刚刚好)
     - export_to_desktop: 是否同时在桌面生成【校正字幕_xxx.txt】与【校正字幕_xxx.srt】（默认 True）
-    
     安全机制：
     1. 自动在原草稿目录创建 draft_content.json.bak 备份；
     2. 严格保留时间戳与轨道结构，仅替换文本内容与自适应字符区间 range；
@@ -383,6 +384,14 @@ def update_draft_subtitles(
                             }]
 
                 m_obj["content"] = json.dumps(c_dict, ensure_ascii=False)
+        # 2.2 自动调整主视频/人声轨音量至标准 dB (默认 +7.0 dB，linear gain: 2.2387)
+        if voice_volume_db is not None:
+            linear_gain = 10.0 ** (voice_volume_db / 20.0)
+            for tr in full_data.get("tracks", []):
+                if tr.get("type") in ["video", "audio"] and (tr.get("name") in ["VideoMain", "video", ""] or tr == full_data["tracks"][0]):
+                    for seg in tr.get("segments", []):
+                        seg["volume"] = linear_gain
+                        seg["last_nonzero_volume"] = linear_gain
 
         # 3. 将更新后的数据保存回临时明文草稿
         with open(plain_file, "w", encoding="utf-8") as f:
@@ -472,6 +481,7 @@ def update_draft_subtitles(
         "backup_path": str(bak_file),
         "style_preset": style_preset or "保留原样",
         "desktop_exports": desktop_files,
+        "voice_volume": f"+{voice_volume_db:.1f} dB" if voice_volume_db is not None else "未修改",
         "clone_project": clone_info,
         "reopened": reopened,
         "collaborative_tip": "导出的 SRT 文件已放置桌面，可立即发送给另一位 AI 助手（如 overlay-studio / agent-motion）并行制作透明动效层！",
