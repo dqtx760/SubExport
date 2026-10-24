@@ -95,6 +95,9 @@ pip install -r requirements.txt
 | **`export_draft_to_desktop`** | 纯导出留档 | 提取当前草稿的 TXT 与 SRT 保存至桌面 |
 | **`list_recent_drafts`** | 列出剪映最近草稿 | 支持挑选历史项目进行精准处理 |
 | **`restore_draft_backup`** | 从 `.bak` 一键撤销还原 | 零风险安全底线 |
+| **`search_jianying_assets`** | 离线检索特效/转场/动画/音效/BGM | 支持中文模糊检索剪映全量官方素材库 ID |
+| **`add_audio_sfx_or_bgm`** | 一键添加音效或背景音乐 | 自动处理节拍/声道/变速引用，内置常用卡点音效 |
+| **`apply_smart_zoom`** | 关键帧智能平滑运镜变焦 | 类似 FocuSee / Ken Burns 视觉放大特写 |
 
 ---
 
