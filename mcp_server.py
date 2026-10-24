@@ -24,6 +24,10 @@ mcp = FastMCP("jianying-subtitle")
 
 # 基础路径常量
 CURRENT_DIR = Path(__file__).resolve().parent
+ENGINE_DIR = CURRENT_DIR / "engine"
+if ENGINE_DIR.exists() and str(ENGINE_DIR) not in sys.path:
+    sys.path.insert(0, str(ENGINE_DIR))
+SFX_DIR = CURRENT_DIR / "assets" / "sfx"
 LOCALAPPDATA = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
 DESKTOP_DIR = Path.home() / "Desktop"
 DRAFT_ROOT = LOCALAPPDATA / "JianyingPro" / "User Data" / "Projects" / "com.lveditor.draft"
