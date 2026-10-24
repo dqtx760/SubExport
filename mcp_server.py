@@ -267,7 +267,8 @@ def list_recent_drafts(limit: int = 10) -> List[Dict[str, Any]]:
 def update_draft_subtitles(
     corrected_lines: List[str],
     draft_name_or_path: Optional[str] = None,
-    style_preset: Optional[str] = None,
+    style_preset: Optional[str] = "yansong_shadow",
+    create_clone: bool = True,
     export_to_desktop: bool = True
 ) -> Dict[str, Any]:
     """将校对后的字幕文本直接原地写回剪映草稿，并可选导出到桌面。
@@ -340,6 +341,32 @@ def update_draft_subtitles(
                 elif style_preset == "clean_white":
                     m_obj["border_width"] = 0.0
                     m_obj["has_shadow"] = True
+                elif style_preset in ["yansong_shadow", "研宋体", "研宋体阴影"]:
+                    yansong_path = "C:/Users/Administrator/AppData/Local/JianyingPro/User Data/Cache/effect/4010355/06458c13377d445fe3368cd2c786c7a5/Aa研宋.ttf"
+                    yansong_id = "7130644288047682085"
+                    m_obj["font_title"] = "研宋体"
+                    m_obj["font_id"] = "4010355"
+                    m_obj["font_resource_id"] = yansong_id
+                    m_obj["font_path"] = yansong_path
+                    m_obj["font_size"] = 13.0
+                    m_obj["has_shadow"] = True
+                    m_obj["shadow_alpha"] = 0.6
+                    m_obj["shadow_color"] = "#000000"
+                    m_obj["shadow_diffuse"] = 0.010031185
+                    m_obj["shadow_distance"] = 6.0
+                    m_obj["shadow_angle"] = -60.0
+                    m_obj["border_width"] = 0.0
+                    if "styles" in c_dict and isinstance(c_dict["styles"], list):
+                        for st in c_dict["styles"]:
+                            st["size"] = 13.0
+                            st["font"] = {"id": yansong_id, "path": yansong_path}
+                            st["shadows"] = [{
+                                "alpha": 0.6,
+                                "angle": -60.0,
+                                "content": {"solid": {"alpha": 1.0, "color": [0.0, 0.0, 0.0]}},
+                                "diffuse": 0.010031185,
+                                "distance": 6.0
+                            }]
 
                 m_obj["content"] = json.dumps(c_dict, ensure_ascii=False)
 
@@ -384,6 +411,16 @@ def update_draft_subtitles(
 
         shutil.copy2(new_enc_file, orig_content_file)
 
+        # 6.2 复制生成独立副本项目，彻底防止剪映运行时内存缓存反向覆写
+        clone_info = None
+        if create_clone:
+            clone_name = f"{draft_dir.name} (AI精修字幕)"
+            clone_dir = DRAFT_ROOT / clone_name
+            if clone_dir.exists():
+                shutil.rmtree(clone_dir, ignore_errors=True)
+            shutil.copytree(draft_dir, clone_dir, ignore=shutil.ignore_patterns(".backup", "*.bak", "*.tmp", ".locked"))
+            shutil.copy2(new_enc_file, clone_dir / "draft_content.json")
+            clone_info = clone_name
     # 7. 桌面导出留档
     desktop_files = {}
     if export_to_desktop and DESKTOP_DIR.exists():
@@ -408,7 +445,9 @@ def update_draft_subtitles(
         "backup_path": str(bak_file),
         "style_preset": style_preset or "保留原样",
         "desktop_exports": desktop_files,
-        "instructions": "字幕已成功加密写回剪映草稿！请在剪映中退出项目至首页，再重新双击进入项目，即可看到更新后的字幕与时码。"
+        "clone_project": clone_info,
+        "collaborative_tip": "导出的 SRT 文件已放置桌面，可立即发送给另一位 AI 助手（如 overlay-studio / agent-motion）并行制作透明动效层！",
+        "instructions": f"字幕已成功加密写回剪映草稿！已为您生成缓存安全副本【{clone_info or draft_dir.name}】，回到剪映首页直接打开即可看到新字幕。"
     }
 
 
