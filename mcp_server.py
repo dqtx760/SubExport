@@ -28,6 +28,8 @@ ENGINE_DIR = CURRENT_DIR / "engine"
 if ENGINE_DIR.exists() and str(ENGINE_DIR) not in sys.path:
     sys.path.insert(0, str(ENGINE_DIR))
 SFX_DIR = CURRENT_DIR / "assets" / "sfx"
+PRESETS_DIR = CURRENT_DIR / "engine" / "presets"
+PRESETS_DIR.mkdir(parents=True, exist_ok=True)
 LOCALAPPDATA = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
 DESKTOP_DIR = Path.home() / "Desktop"
 DRAFT_ROOT = LOCALAPPDATA / "JianyingPro" / "User Data" / "Projects" / "com.lveditor.draft"
@@ -321,6 +323,16 @@ def update_draft_subtitles(
         # 2. 逐行更新文字内容与样式字符区间
         materials_texts = full_data.get("materials", {}).get("texts", [])
         mid_to_mat = {m["id"]: m for m in materials_texts}
+        # 加载自定义预设文件（如果有）
+        custom_preset = None
+        if style_preset:
+            p_file = PRESETS_DIR / f"{style_preset}.json"
+            if p_file.exists():
+                try:
+                    with open(p_file, "r", encoding="utf-8") as pf:
+                        custom_preset = json.load(pf)
+                except Exception:
+                    pass
 
         for seg, new_text in zip(segments, corrected_lines):
             mid = seg["material_id"]
@@ -341,7 +353,29 @@ def update_draft_subtitles(
                         st["range"] = [0, new_len]
 
                 # 应用样式预设
-                if style_preset == "white_border_black":
+                if custom_preset:
+                    for k in ["font_title", "font_id", "font_resource_id", "font_path", "font_size", "border_width", "border_color", "border_alpha", "has_shadow", "shadow_alpha", "shadow_color", "shadow_diffuse", "shadow_distance", "shadow_angle", "background_style", "background_color", "background_alpha", "background_round_radius", "background_height", "background_width"]:
+                        if k in custom_preset and custom_preset[k] is not None:
+                            m_obj[k] = custom_preset[k]
+                    if "styles" in c_dict and isinstance(c_dict["styles"], list):
+                        for st in c_dict["styles"]:
+                            if "font_size" in custom_preset:
+                                st["size"] = custom_preset["font_size"]
+                            if "font_resource_id" in custom_preset or "font_path" in custom_preset:
+                                st["font"] = {"id": custom_preset.get("font_resource_id", ""), "path": custom_preset.get("font_path", "")}
+                            if "fill_color" in custom_preset:
+                                st["fill"] = {"alpha": 1.0, "content": {"render_type": "solid", "solid": {"alpha": 1.0, "color": custom_preset["fill_color"]}}}
+                            if custom_preset.get("has_shadow"):
+                                st["shadows"] = [{
+                                    "alpha": custom_preset.get("shadow_alpha", 0.6),
+                                    "angle": custom_preset.get("shadow_angle", -60.0),
+                                    "content": {"solid": {"alpha": 1.0, "color": [0.0, 0.0, 0.0]}},
+                                    "diffuse": custom_preset.get("shadow_diffuse", 0.010031185),
+                                    "distance": custom_preset.get("shadow_distance", 6.0)
+                                }]
+                            if "bold" in custom_preset:
+                                st["bold"] = custom_preset["bold"]
+                elif style_preset == "white_border_black":
                     m_obj["border_width"] = 10.0
                     m_obj["border_color"] = "#000000"
                     m_obj["border_alpha"] = 1.0
@@ -536,6 +570,118 @@ def export_draft_to_desktop(draft_name_or_path: Optional[str] = None) -> Dict[st
         "txt_file": str(txt_path),
         "srt_file": str(srt_path)
     }
+@mcp.tool()
+def extract_subtitle_preset_from_draft(
+    draft_name_or_path: str,
+    preset_name: str,
+    segment_index: int = 0
+) -> Dict[str, Any]:
+    """从闲鱼/拼多多/第三方剪映草稿模板中提取精美字幕样式，并保存为可复用的预设。
+    
+    参数：
+    - draft_name_or_path: 模板草稿的项目名或文件夹绝对路径
+    - preset_name: 要保存的预设名称（如 'xianyu_vlog_yellow', 'pdd_bold_red'）
+    - segment_index: 提取哪一个字幕切片的样式（默认 0，即第一句字幕）
+    """
+    draft_dir = resolve_draft_dir(draft_name_or_path)
+    with tempfile.TemporaryDirectory() as td:
+        plain_file = decrypt_draft_to_temp(draft_dir, Path(td))
+        with open(plain_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+    text_track = None
+    for tr in data.get("tracks", []):
+        if tr.get("type") == "text" and tr.get("segments"):
+            text_track = tr
+            break
+
+    if not text_track:
+        return {"status": "error", "message": f"草稿【{draft_dir.name}】中未找到任何文本轨道"}
+
+    segs = text_track["segments"]
+    if segment_index >= len(segs):
+        segment_index = 0
+
+    target_seg = segs[segment_index]
+    mid = target_seg["material_id"]
+    texts = data.get("materials", {}).get("texts", [])
+    mat = next((m for m in texts if m["id"] == mid), None)
+    if not mat:
+        return {"status": "error", "message": "未能找到对应的文字素材数据"}
+
+    try:
+        c = json.loads(mat.get("content", "{}"))
+        st0 = c.get("styles", [{}])[0]
+    except Exception:
+        st0 = {}
+
+    preset_obj = {
+        "name": preset_name,
+        "source_draft": draft_dir.name,
+        "font_title": mat.get("font_title"),
+        "font_id": mat.get("font_id"),
+        "font_resource_id": mat.get("font_resource_id"),
+        "font_path": mat.get("font_path"),
+        "font_size": mat.get("font_size"),
+        "border_width": mat.get("border_width"),
+        "border_color": mat.get("border_color"),
+        "border_alpha": mat.get("border_alpha"),
+        "has_shadow": mat.get("has_shadow"),
+        "shadow_alpha": mat.get("shadow_alpha"),
+        "shadow_color": mat.get("shadow_color"),
+        "shadow_diffuse": mat.get("shadow_diffuse"),
+        "shadow_distance": mat.get("shadow_distance"),
+        "shadow_angle": mat.get("shadow_angle"),
+        "background_style": mat.get("background_style"),
+        "background_color": mat.get("background_color"),
+        "background_alpha": mat.get("background_alpha"),
+        "background_round_radius": mat.get("background_round_radius"),
+        "background_height": mat.get("background_height"),
+        "background_width": mat.get("background_width"),
+        "fill_color": st0.get("fill", {}).get("content", {}).get("solid", {}).get("color", [1.0, 1.0, 1.0]),
+        "bold": st0.get("bold", False)
+    }
+
+    out_file = PRESETS_DIR / f"{preset_name}.json"
+    with open(out_file, "w", encoding="utf-8") as f:
+        json.dump(preset_obj, f, ensure_ascii=False, indent=2)
+
+    return {
+        "status": "success",
+        "preset_name": preset_name,
+        "saved_path": str(out_file),
+        "source_draft": draft_dir.name,
+        "details": {
+            "font": mat.get("font_title"),
+            "size": mat.get("font_size"),
+            "border": f"宽{mat.get('border_width')} 色{mat.get('border_color')}",
+            "background": mat.get("background_color"),
+            "shadow": mat.get("has_shadow")
+        },
+        "instructions": f"预设已成功吸取保存！后续更新字幕时，直接传入 style_preset='{preset_name}' 即可一键批量应用该样式！"
+    }
+
+
+@mcp.tool()
+def list_subtitle_presets() -> List[Dict[str, Any]]:
+    """列出当前所有已保存的字幕样式预设库（包含系统预设及从闲鱼/第三方工程吸取的预设）。"""
+    results = []
+    for f in PRESETS_DIR.glob("*.json"):
+        try:
+            with open(f, "r", encoding="utf-8") as fl:
+                d = json.load(fl)
+            results.append({
+                "preset_id": f.stem,
+                "name": d.get("name", f.stem),
+                "font": d.get("font_title"),
+                "size": d.get("font_size"),
+                "border": d.get("border_color"),
+                "background": d.get("background_color"),
+                "file_path": str(f)
+            })
+        except Exception:
+            pass
+    return results
 
 @mcp.tool()
 def search_jianying_assets(

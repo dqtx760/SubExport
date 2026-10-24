@@ -1,0 +1,27 @@
+{
+  "name": "高饱和红底白字色块",
+  "description": "醒目撞色重点词：高饱和红色底色 + 白色加粗大字",
+  "font_title": "经典雅黑",
+  "font_id": "1488718",
+  "font_resource_id": "7043775037559542279",
+  "font_path": "",
+  "font_size": 20.0,
+  "background_style": 1,
+  "background_color": "#E11D48",
+  "background_alpha": 1.0,
+  "background_round_radius": 0.2,
+  "background_height": 0.16,
+  "background_width": 0.18,
+  "border_width": 0.0,
+  "has_shadow": true,
+  "shadow_alpha": 0.7,
+  "shadow_color": "#000000",
+  "shadow_distance": 8.0,
+  "shadow_angle": -60.0,
+  "fill_color": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "bold": true
+}

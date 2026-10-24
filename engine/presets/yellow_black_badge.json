@@ -1,0 +1,27 @@
+{
+  "name": "爆款黑字黄底色块",
+  "description": "强视觉冲击力重点词：亮黄色底色 + 黑色加粗大字",
+  "font_title": "经典雅黑",
+  "font_id": "1488718",
+  "font_resource_id": "7043775037559542279",
+  "font_path": "",
+  "font_size": 20.0,
+  "background_style": 1,
+  "background_color": "#FFDD00",
+  "background_alpha": 1.0,
+  "background_round_radius": 0.2,
+  "background_height": 0.16,
+  "background_width": 0.18,
+  "border_width": 0.0,
+  "has_shadow": true,
+  "shadow_alpha": 0.7,
+  "shadow_color": "#000000",
+  "shadow_distance": 8.0,
+  "shadow_angle": -60.0,
+  "fill_color": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "bold": true
+}

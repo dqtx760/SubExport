@@ -1,0 +1,22 @@
+{
+  "name": "Aa研宋体经典阴影",
+  "description": "短视频极简高级感：研宋体 + 13号字 + 60%阴影 + 6%模糊",
+  "font_title": "研宋体",
+  "font_id": "4010355",
+  "font_resource_id": "7130644288047682085",
+  "font_path": "C:/Users/Administrator/AppData/Local/JianyingPro/User Data/Cache/effect/4010355/06458c13377d445fe3368cd2c786c7a5/Aa研宋.ttf",
+  "font_size": 13.0,
+  "border_width": 0.0,
+  "has_shadow": true,
+  "shadow_alpha": 0.6,
+  "shadow_color": "#000000",
+  "shadow_diffuse": 0.010031185,
+  "shadow_distance": 6.0,
+  "shadow_angle": -60.0,
+  "fill_color": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "bold": false
+}
