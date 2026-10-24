@@ -272,7 +272,7 @@ def update_draft_subtitles(
     corrected_lines: List[str],
     draft_name_or_path: Optional[str] = None,
     style_preset: Optional[str] = "yansong_shadow",
-    create_clone: bool = True,
+    create_clone: bool = False,
     export_to_desktop: bool = True
 ) -> Dict[str, Any]:
     """将校对后的字幕文本直接原地写回剪映草稿，并可选导出到桌面。
@@ -295,6 +295,16 @@ def update_draft_subtitles(
     jy_dir = get_jianying_app_dir()
     no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
 
+    # 自动释放剪映项目锁（若处于编辑模式，自动切回主页释放内存锁，防止覆写）
+    ctl = None
+    try:
+        from pyJianYingDraft.jianying_controller import JianyingController
+        ctl = JianyingController(keep_topmost=False)
+        if ctl.app_status == "edit":
+            ctl.switch_to_home()
+            time.sleep(1.5)
+    except Exception:
+        ctl = None
     # 1. 解密草稿到临时工作区
     with tempfile.TemporaryDirectory() as td:
         temp_dir = Path(td)
@@ -415,7 +425,7 @@ def update_draft_subtitles(
 
         shutil.copy2(new_enc_file, orig_content_file)
 
-        # 6.2 复制生成独立副本项目，彻底防止剪映运行时内存缓存反向覆写
+        # 6.2 复制生成独立副本项目（可选备用）
         clone_info = None
         if create_clone:
             clone_name = f"{draft_dir.name} (AI精修字幕)"
@@ -425,6 +435,19 @@ def update_draft_subtitles(
             shutil.copytree(draft_dir, clone_dir, ignore=shutil.ignore_patterns(".backup", "*.bak", "*.tmp", ".locked"))
             shutil.copy2(new_enc_file, clone_dir / "draft_content.json")
             clone_info = clone_name
+
+        # 6.3 原地自动重载（如果未生成副本且剪映在主页，自动双击重新打开原草稿！）
+        reopened = False
+        if ctl and not create_clone:
+            try:
+                from pyJianYingDraft.jianying_controller import ControlFinder
+                draft_text = ctl.app.TextControl(searchDepth=2, Compare=ControlFinder.desc_matcher(f"HomePageDraftTitle:{draft_dir.name}", exact=True))
+                if draft_text.Exists(2):
+                    btn = draft_text.GetParentControl()
+                    btn.Click(simulateMove=False)
+                    reopened = True
+            except Exception:
+                pass
     # 7. 桌面导出留档
     desktop_files = {}
     if export_to_desktop and DESKTOP_DIR.exists():
@@ -450,8 +473,9 @@ def update_draft_subtitles(
         "style_preset": style_preset or "保留原样",
         "desktop_exports": desktop_files,
         "clone_project": clone_info,
+        "reopened": reopened,
         "collaborative_tip": "导出的 SRT 文件已放置桌面，可立即发送给另一位 AI 助手（如 overlay-studio / agent-motion）并行制作透明动效层！",
-        "instructions": f"字幕已成功加密写回剪映草稿！已为您生成缓存安全副本【{clone_info or draft_dir.name}】，回到剪映首页直接打开即可看到新字幕。"
+        "instructions": f"已成功原地更新剪映原项目【{draft_dir.name}】！" + ("已自动为你重新打开工程，更新即刻呈现！" if reopened else "请在剪映中打开该项目查看。")
     }
 
 
