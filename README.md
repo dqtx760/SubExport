@@ -39,15 +39,62 @@
 * 🖥️ **深色极简原生 UI**：启动自动在屏幕正中央居中显示，配备轻量交互悬浮提示，不打断剪辑思路。
 
 ---
-## 🤖 新增：AI Agent / MCP 服务集成 (`mcp_server.py`)
+## 🤖 AI Agent / MCP 服务集成 (`mcp_server.py`)
 
-除了桌面客户端 UI 外，本项目原生内置了标准 **FastMCP 服务**，已自动挂载至全局智能体配置中。
+除了桌面客户端 UI 外，本项目原生内置了标准的 **FastMCP 服务**。不仅你自己能用，你的朋友和关注者 Clone 本项目后，也可以直接挂载到 **Claude Desktop、Claude Code、Cursor、Windsurf、WorkBuddy** 等支持 MCP 协议的 AI 智能体中！
 
-**核心工作流（零手动复制粘贴）**：
-1. **自动提取最新草稿**：`get_latest_draft_subtitles` 自动定位剪映最新草稿并解析字幕。
-2. **原地加密写回**：`update_draft_subtitles` 保持原有时间戳 100% 严丝合缝，只替换纠错文字（支持注入高亮描边预设），加密写回剪映。
-3. **桌面双备份**：写回时自动在桌面生成 `校正字幕_xxx.txt` 与 `校正字幕_xxx.srt`。
-4. **一键安全还原**：`restore_draft_backup` 自动通过 `.bak` 备份秒级撤销修改。
+### 1. 安装依赖
+本 MCP 基于轻量标准的 `fastmcp` 开发，仅需一行命令：
+```bash
+pip install -r requirements.txt
+```
+
+### 2. 本地快速自检
+双击运行文件夹内的 **`测试MCP服务.bat`**（或在命令行运行 `python mcp_server.py --test`）。  
+看到 `测试通过！` 即说明环境已完全具备，成功读取到剪映本地草稿。
+
+### 3. 在各大智能体中配置挂载
+
+#### 方案 A：Claude Desktop / Claude Code 配置
+在你的 Claude 配置文件（如 `~/.claude.json` 或 `%APPDATA%\Claude\claude_desktop_config.json`）的 `mcpServers` 节点中添加：
+
+```json
+{
+  "mcpServers": {
+    "jianying-subtitle": {
+      "command": "python",
+      "args": [
+        "D:\\你的项目目录\\剪映字幕导出\\mcp_server.py"
+      ]
+    }
+  }
+}
+```
+
+#### 方案 B：Cursor / Windsurf 配置
+在 `.cursor/mcp.json` 中配置：
+```json
+{
+  "mcpServers": {
+    "jianying-subtitle": {
+      "command": "python",
+      "args": [
+        "D:\\你的项目目录\\剪映字幕导出\\mcp_server.py"
+      ]
+    }
+  }
+}
+```
+
+### 4. MCP 提供的核心能力
+
+| MCP 工具名称 | 对应功能 | 价值 |
+|---|---|---|
+| **`get_latest_draft_subtitles`** | 自动提取剪映最新草稿全部字幕 | 零手动复制，秒级获取全量台词与时间戳 |
+| **`update_draft_subtitles`** | 校正文字 + 注入样式 + 安全写回 | 保持打轴时码绝对不变，支持研宋体阴影样式，自动生成 `(AI精修字幕)` 副本 |
+| **`export_draft_to_desktop`** | 纯导出留档 | 提取当前草稿的 TXT 与 SRT 保存至桌面 |
+| **`list_recent_drafts`** | 列出剪映最近草稿 | 支持挑选历史项目进行精准处理 |
+| **`restore_draft_backup`** | 从 `.bak` 一键撤销还原 | 零风险安全底线 |
 
 ---
 
