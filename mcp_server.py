@@ -843,6 +843,29 @@ def apply_smart_zoom(
         "instructions": "已成功在视频轨注入平滑变焦关键帧！在对应时段画面会自动平滑放大聚焦焦点。"
     }
 
+@mcp.tool()
+def one_click_optimize_subtitles(
+    draft_name_or_path: Optional[str] = None,
+    is_vertical: bool = True
+) -> Dict[str, Any]:
+    """一键极速执行剪映口播字幕全套黄金规范包装（5秒端到端完成）。
+    
+    规范自动集成:
+    1. 自动定位最新草稿或指定草稿，逐字稿行数 100% 绝对守恒；
+    2. 标点彻底清空，长句按语义自然插入 \\n 换行（彻底杜绝寡字掉行与倒金字塔失衡）；
+    3. Aa研宋体 13.0 + 60% 经典黑色立体阴影；
+    4. 句内核心重点词放大至 16.5 + 加粗 + 亮金黄高饱和高亮；
+    5. 竖屏 9:16 终极真机黄金安全区 y = -0.42（完美避让抖音章节横条与文案卡片上浮）；
+    6. 关键情绪转折节点自动注入轻量入场动画与卡点留存音效；
+    7. 主视频人声音量自动锁定 +7.0 dB 广播级响度；
+    8. UI 自动化原地解锁 + 原地加密多副本同步 + 原地重载打开。
+    """
+    from auto_subtitle_workflow import execute_one_click_optimization
+    return execute_one_click_optimization(
+        draft_name_or_path=draft_name_or_path,
+        is_vertical=is_vertical
+    )
+
 if __name__ == "__main__":
     # 支持命令行快速测试模式
     if len(sys.argv) > 1 and sys.argv[1] == "--test":
