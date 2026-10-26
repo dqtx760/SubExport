@@ -99,6 +99,24 @@ pip install -r requirements.txt
 | **`add_audio_sfx_or_bgm`** | 一键添加音效或背景音乐 | 自动处理节拍/声道/变速引用，内置常用卡点音效 |
 | **`apply_smart_zoom`** | 关键帧智能平滑运镜变焦 | 类似 FocuSee / Ken Burns 视觉放大特写 |
 
+
+### 5. 配套内置 AI 技能 (`skills/jianying-subtitle-optimizer`)
+
+> 💡 **关键原则：光有技能或光有 MCP 都是不够的（双驱闭环）**
+> - **MCP 服务 (`mcp_server.py`) 是“手脚”**：赋予智能体直接读取、解密、加密写回剪映草稿并释放内存锁的底层操作系统能力。
+> - **Agent 技能 (`skills/`) 是“大脑”**：教会智能体专业剪辑师的审美标准（Aa研宋体+立体阴影、重点词放大16.5亮黄高亮、单句<=8字对称折行、竖屏黄金安全区 `y=-0.42` 避让抖音横条、卡点轻动效与音效、+7.0dB 人声标准化）。
+
+本项目已在 `skills/jianying-subtitle-optimizer/` 目录下完整内置了开箱即用的技能定义：
+
+1. **安装/挂载技能**：
+   - **Claude Code 用户**：将 `skills/jianying-subtitle-optimizer` 复制或软链至 `~/.claude/skills/`；
+   - **Codex 用户**：将 `skills/jianying-subtitle-optimizer` 复制或软链至 `~/.codex/skills/`；
+   - **其他 Agent / 网页端**：直接将 `skills/SKILL.md` 内容作为系统 Prompt 或工作流知识库引入。
+2. **日常使用方式**：
+   对智能体说：
+   - `帮我校对剪映最新草稿字幕`
+   - 或输入 `/jianying-subtitle-optimizer [粘贴台词]`
+   智能体便会自动调用本项目的 MCP 工具，5 秒内原地把剪映草稿改好并重新加载！
 ---
 
 
