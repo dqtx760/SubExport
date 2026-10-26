@@ -71,17 +71,22 @@ def get_latest_draft_dir() -> Path:
     return dirs[0]
 
 
-def clean_and_balance_line(raw_text: str) -> str:
+def clean_and_balance_line(raw_text: str, single_line: bool = True) -> str:
     """
-    标点清洗与匀称断句美学算法:
+    标点清洗与单行/匀称排版算法:
     - 彻底删除首尾和中间标点符号；
-    - 长句 (> 10字) 寻找最佳对称点插入 \\n，杜绝单字掉行与倒金字塔失衡；
-    - 短句停顿处以空格分隔。
+    - single_line=True (默认): 保证单行顺次滚动（绝无 \\n 换行，绝无双行堆叠）；
+    - single_line=False: 兼容双行折行排版。
     """
     clean = raw_text.strip().rstrip("，。！？,.!? ")
     if not clean:
         return ""
 
+    if single_line:
+        # 纯单行模式：替换所有换行与逗号为空格或直接连接
+        clean_single = clean.replace("\n", " ").replace("，", " ").replace(",", " ")
+        # 清理多余连续空格与标点
+        return " ".join([p.strip().rstrip("，。！？,.!? ") for p in clean_single.split(" ") if p.strip()])
     # 如果本身已有换行，保持清洗后的内容
     if "\n" in clean:
         parts = [p.strip().rstrip("，。！？,.!? ") for p in clean.split("\n") if p.strip()]
