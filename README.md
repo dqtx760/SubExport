@@ -39,85 +39,99 @@
 * 🖥️ **深色极简原生 UI**：启动自动在屏幕正中央居中显示，配备轻量交互悬浮提示，不打断剪辑思路。
 
 ---
-## 🤖 AI Agent / MCP 服务集成 (`mcp_server.py`)
+## 🤖 AI Agent 联动工作流（MCP + Skill 双驱使用步骤）
 
-除了桌面客户端 UI 外，本项目原生内置了标准的 **FastMCP 服务**。不仅你自己能用，你的朋友和关注者 Clone 本项目后，也可以直接挂载到 **Claude Desktop、Claude Code、Cursor、Windsurf、WorkBuddy** 等支持 MCP 协议的 AI 智能体中！
+> 💡 **核心逻辑：光安装技能是没有用的，必须先配置 MCP！**
+> - **第一步：配置 MCP（安装手脚）** ➔ 赋予智能体直接读取、解密、加密写回剪映底层草稿的操作系统能力；
+> - **第二步：安装 Skill（安装大脑）** ➔ 教会智能体专业剪辑师的审美标准与断句排版规则；
+> - **第三步：直接在对话中调用** ➔ 一句话让智能体驱动剪映自动完成字幕优化与动效音效包装。
 
-### 1. 安装依赖
-本 MCP 基于轻量标准的 `fastmcp` 开发，仅需一行命令：
-```bash
-pip install -r requirements.txt
-```
+---
 
-### 2. 本地快速自检
-双击运行文件夹内的 **`测试MCP服务.bat`**（或在命令行运行 `python mcp_server.py --test`）。  
-看到 `测试通过！` 即说明环境已完全具备，成功读取到剪映本地草稿。
+### 第一步：配置 MCP 服务（赋予智能体操作剪映的底层能力）
 
-### 3. 在各大智能体中配置挂载
+1. **安装环境依赖**：
+   在本项目根目录下打开终端运行：
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. **本地快速自检**：
+   双击运行文件夹内的 **`测试MCP服务.bat`**（或在命令行运行 `python mcp_server.py --test`）。  
+   看到 `测试通过！` 即说明环境已完全具备，成功读取到剪映本地草稿。
 
-#### 方案 A：Claude Desktop / Claude Code 配置
-在你的 Claude 配置文件（如 `~/.claude.json` 或 `%APPDATA%\Claude\claude_desktop_config.json`）的 `mcpServers` 节点中添加：
+3. **在你的 AI 客户端中挂载 MCP**：
+   在 Claude Desktop、Claude Code、Cursor、Windsurf、Codex 或 WorkBuddy 的 MCP 配置文件（如 `claude_desktop_config.json` 或 `mcp.json`）的 `mcpServers` 节点中添加：
 
-```json
-{
-  "mcpServers": {
-    "jianying-subtitle": {
-      "command": "python",
-      "args": [
-        "D:\\你的项目目录\\剪映字幕导出\\mcp_server.py"
-      ]
-    }
-  }
-}
-```
+   ```json
+   {
+     "mcpServers": {
+       "jianying-subtitle": {
+         "command": "python",
+         "args": [
+           "D:\\你的项目路径\\SubExport\\mcp_server.py"
+         ]
+       }
+     }
+   }
+   ```
+   *(注：请将上述路径替换为你电脑上实际克隆 `SubExport` 项目的绝对路径)*
 
-#### 方案 B：Cursor / Windsurf 配置
-在 `.cursor/mcp.json` 中配置：
-```json
-{
-  "mcpServers": {
-    "jianying-subtitle": {
-      "command": "python",
-      "args": [
-        "D:\\你的项目目录\\剪映字幕导出\\mcp_server.py"
-      ]
-    }
-  }
-}
-```
+---
 
-### 4. MCP 提供的核心能力
+### 第二步：安装配套 Skill 技能（赋予智能体黄金排版与校对思维）
+
+本项目已将经过长期实战打磨的剪辑师技能完整内置在 **`skills/`** 目录下：
+
+1. **Claude Code 用户**：
+   将 `skills/jianying-subtitle-optimizer` 复制或软链至 `~/.claude/skills/`：
+   ```powershell
+   # Windows PowerShell 示例
+   Copy-Item -Recurse "skills\jianying-subtitle-optimizer" "$HOME\.claude\skills\"
+   ```
+2. **Codex 用户**：
+   将 `skills/jianying-subtitle-optimizer` 复制或软链至 `~/.codex/skills/`：
+   ```powershell
+   Copy-Item -Recurse "skills\jianying-subtitle-optimizer" "$HOME\.codex\skills\"
+   ```
+3. **其他智能体 / 网页端 / 自定义系统提示词**：
+   直接将 `skills/SKILL.md` 的内容复制作为系统 Prompt 或工作流知识库规则。
+
+---
+
+### 第三步：在对话中直接调用（一句话全自动）
+
+完成上述两步后，只需在剪映中完成语音识别转字幕，然后切回你的 AI 客户端直接对话：
+
+- **方式 1（全自动极速模式，最常用）**：
+  > **“帮我校对剪映最新草稿字幕”**
+  > 或 **“优化剪映字幕”**
+
+- **方式 2（指定台词或斜杠命令）**：
+  > **`/jianying-subtitle-optimizer [附带你导出的台词文本]`**
+
+智能体将自动驱动 MCP 服务在 **5 秒内** 完成以下全部动作：
+1. 自动定位最新草稿并释放剪映文件锁；
+2. 纠正错别字、清除无意义口语碎词、长句按语义优雅分行（<=8字）；
+3. 注入经典排版：**Aa研宋体 (13.0) + 60% 立体阴影 + 核心词放大16.5亮黄高亮**；
+4. 自动锁定竖屏黄金安全区 **`y = -0.42`**（完美避让抖音章节横条与文案上浮）；
+5. 自动在关键转折点注入 5~8 处轻动效与卡点音效，人声标准化增益至 **+7.0 dB**；
+6. 原地加密写回剪映工程并自动重载，新效果即刻呈现在剪映中！
+
+---
+
+### 附：MCP 提供的核心工具列表
 
 | MCP 工具名称 | 对应功能 | 价值 |
 |---|---|---|
+| **`one_click_optimize_subtitles`** | 5秒一键极速优化通道 | 1步端到端完成校对+排版+动效+音效 |
 | **`get_latest_draft_subtitles`** | 自动提取剪映最新草稿全部字幕 | 零手动复制，秒级获取全量台词与时间戳 |
-| **`update_draft_subtitles`** | 校正文字 + 注入样式 + 安全写回 | 保持打轴时码绝对不变，支持研宋体阴影样式，自动生成 `(AI精修字幕)` 副本 |
+| **`update_draft_subtitles`** | 校正文字 + 注入样式 + 安全写回 | 保持打轴时码绝对不变，支持研宋体阴影样式 |
 | **`export_draft_to_desktop`** | 纯导出留档 | 提取当前草稿的 TXT 与 SRT 保存至桌面 |
 | **`list_recent_drafts`** | 列出剪映最近草稿 | 支持挑选历史项目进行精准处理 |
 | **`restore_draft_backup`** | 从 `.bak` 一键撤销还原 | 零风险安全底线 |
 | **`search_jianying_assets`** | 离线检索特效/转场/动画/音效/BGM | 支持中文模糊检索剪映全量官方素材库 ID |
 | **`add_audio_sfx_or_bgm`** | 一键添加音效或背景音乐 | 自动处理节拍/声道/变速引用，内置常用卡点音效 |
 | **`apply_smart_zoom`** | 关键帧智能平滑运镜变焦 | 类似 FocuSee / Ken Burns 视觉放大特写 |
-
-
-### 5. 配套内置 AI 技能 (`skills/jianying-subtitle-optimizer`)
-
-> 💡 **关键原则：光有技能或光有 MCP 都是不够的（双驱闭环）**
-> - **MCP 服务 (`mcp_server.py`) 是“手脚”**：赋予智能体直接读取、解密、加密写回剪映草稿并释放内存锁的底层操作系统能力。
-> - **Agent 技能 (`skills/`) 是“大脑”**：教会智能体专业剪辑师的审美标准（Aa研宋体+立体阴影、重点词放大16.5亮黄高亮、单句<=8字对称折行、竖屏黄金安全区 `y=-0.42` 避让抖音横条、卡点轻动效与音效、+7.0dB 人声标准化）。
-
-本项目已在 `skills/jianying-subtitle-optimizer/` 目录下完整内置了开箱即用的技能定义：
-
-1. **安装/挂载技能**：
-   - **Claude Code 用户**：将 `skills/jianying-subtitle-optimizer` 复制或软链至 `~/.claude/skills/`；
-   - **Codex 用户**：将 `skills/jianying-subtitle-optimizer` 复制或软链至 `~/.codex/skills/`；
-   - **其他 Agent / 网页端**：直接将 `skills/SKILL.md` 内容作为系统 Prompt 或工作流知识库引入。
-2. **日常使用方式**：
-   对智能体说：
-   - `帮我校对剪映最新草稿字幕`
-   - 或输入 `/jianying-subtitle-optimizer [粘贴台词]`
-   智能体便会自动调用本项目的 MCP 工具，5 秒内原地把剪映草稿改好并重新加载！
----
 
 
 ## 🚀 快速上手指南（给朋友的使用说明）
