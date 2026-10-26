@@ -136,6 +136,66 @@ def clean_and_balance_line(raw_text: str, single_line: bool = True) -> str:
 
     return clean
 
+def split_into_single_line_slices(raw_text: str, start: int, duration: int, max_len: int = 10) -> List[Dict[str, Any]]:
+    """
+    将长句子按气口和连词细切为 5~10 字的单行短句切片（原文守恒、单行顺次滚动、时间轴比例分配）
+    """
+    clean = raw_text.strip().rstrip("，。！？,.!? ")
+    if not clean:
+        return []
+
+    clean_pure = clean.replace("\n", "").replace("，", "").replace("。", "").strip()
+    if len(clean_pure) <= max_len:
+        return [{"text": clean_pure, "start": start, "duration": duration}]
+
+    delimiters = ["，", "对", "或者", "在", "包括", "事实上", "目前", "真正", "最顶尖", "最多大概", "其实", "也就是说", "因此", "但是"]
+    parts = [clean]
+    for d in delimiters:
+        new_parts = []
+        for p in parts:
+            if len(p.replace("\n", "").replace("，", "").replace(" ", "")) > max_len and d in p:
+                idx = p.find(d)
+                if 3 <= idx <= len(p) - 3:
+                    new_parts.append(p[:idx])
+                    new_parts.append(p[idx:])
+                else:
+                    new_parts.append(p)
+            else:
+                new_parts.append(p)
+        parts = new_parts
+
+    final_texts = []
+    for p in parts:
+        p_clean = p.replace("\n", "").replace("，", "").strip()
+        if not p_clean:
+            continue
+        if len(p_clean) <= max_len:
+            final_texts.append(p_clean)
+        else:
+            half = len(p_clean) // 2
+            final_texts.append(p_clean[:half])
+            final_texts.append(p_clean[half:])
+
+    if not final_texts:
+        return [{"text": clean_pure, "start": start, "duration": duration}]
+
+    total_chars = sum(len(t) for t in final_texts)
+    slices = []
+    cur_start = start
+    for idx, t in enumerate(final_texts):
+        if idx == len(final_texts) - 1:
+            cur_dur = (start + duration) - cur_start
+        else:
+            cur_dur = int(duration * (len(t) / total_chars))
+        slices.append({
+            "text": t,
+            "start": cur_start,
+            "duration": cur_dur
+        })
+        cur_start += cur_dur
+
+    return slices
+
 
 def extract_highlight_keyword(text: str) -> Optional[str]:
     """提取句子中最具辨识度的核心重点词"""
@@ -235,111 +295,128 @@ def execute_one_click_optimization(
             25: ("whoosh", "magic/sparkle.mp3", "星光收尾", 0.60),
         }
 
-        for idx, seg in enumerate(sub_segs):
+        new_sub_segments = []
+        new_materials_texts = []
+        seg_idx = 0
+
+        for seg in sub_segs:
             mid = seg["material_id"]
             if mid not in mid_to_mat:
                 continue
             m_obj = mid_to_mat[mid]
             c_dict = json.loads(m_obj.get("content", "{}"))
             raw_t = c_dict.get("text", "")
+            st = seg["target_timerange"]["start"]
+            dur = seg["target_timerange"]["duration"]
 
-            # 标点清洗与对仗分行
-            balanced_text = clean_and_balance_line(raw_t)
-            kw = extract_highlight_keyword(balanced_text)
+            # 核心铁律：单行顺次滚动（5~10字短语切片，绝对杜绝双行堆叠与左右出界裁切）
+            slices = split_into_single_line_slices(raw_t, st, dur, max_len=10)
+            for s_info in slices:
+                slice_text = s_info["text"]
+                slice_st = s_info["start"]
+                slice_dur = s_info["duration"]
+                mat_id = str(uuid.uuid4()).upper()
 
-            # 样式装配: 纯白研宋 + 60% 阴影 + 重点词 16.5 亮黄高亮
-            base_style = {
-                "fill": {"alpha": 1.0, "content": {"render_type": "solid", "solid": {"alpha": 1.0, "color": [1.0, 1.0, 1.0]}}},
-                "font": {"id": YANSONG_ID, "path": YANSONG_PATH},
-                "size": 13.0,
-                "shadows": SHADOW_SPEC,
-                "range": [0, len(balanced_text)]
-            }
-            styles = [base_style]
+                kw = extract_highlight_keyword(slice_text)
 
-            if kw and kw in balanced_text:
-                k_start = balanced_text.find(kw)
-                k_end = k_start + len(kw)
-                styles.append({
-                    "fill": {"alpha": 1.0, "content": {"render_type": "solid", "solid": {"alpha": 1.0, "color": [1.0, 0.88, 0.15]}}},
+                base_style = {
+                    "fill": {"alpha": 1.0, "content": {"render_type": "solid", "solid": {"alpha": 1.0, "color": [1.0, 1.0, 1.0]}}},
                     "font": {"id": YANSONG_ID, "path": YANSONG_PATH},
-                    "size": 16.5,
-                    "bold": True,
+                    "size": 13.0,
                     "shadows": SHADOW_SPEC,
-                    "range": [k_start, k_end]
-                })
+                    "range": [0, len(slice_text)]
+                }
+                styles = [base_style]
 
-            c_dict["text"] = balanced_text
-            c_dict["styles"] = styles
-
-            m_obj["content"] = json.dumps(c_dict, ensure_ascii=False)
-            m_obj["font_title"] = "研宋体"
-            m_obj["font_id"] = "4010355"
-            m_obj["font_resource_id"] = YANSONG_ID
-            m_obj["font_path"] = YANSONG_PATH
-            m_obj["font_size"] = 13.0
-            m_obj["border_width"] = 0.0
-            m_obj["has_shadow"] = True
-            m_obj["shadow_alpha"] = 0.6
-            m_obj["shadow_color"] = "#000000"
-            m_obj["shadow_diffuse"] = 0.010031185
-            m_obj["shadow_distance"] = 6.0
-            m_obj["shadow_angle"] = -60.0
-            m_obj["background_style"] = 0
-            m_obj["check_flag"] = 39
-
-            # 锁定安全位置
-            seg.setdefault("clip", {})["transform"] = {"x": 0.0, "y": y_pos}
-            seg["extra_material_refs"] = []
-
-            # 如果命中留存节点，注入轻动画与卡点音效
-            if idx in cue_indices:
-                anim_key, sfx_rel, sfx_tag, sfx_vol = cue_indices[idx]
-                anim_info = ANIM_LIB[anim_key]
-                st = seg["target_timerange"]["start"]
-
-                # 动画
-                a_mat_id = str(uuid.uuid4()).upper()
-                material_animations.append({
-                    "animations": [{
-                        "id": anim_info["id"],
-                        "type": "in",
-                        "start": 0,
-                        "duration": anim_info["dur"],
-                        "resource_id": anim_info["res"],
-                        "name": anim_info["name"]
-                    }],
-                    "id": a_mat_id,
-                    "type": "sticker_animation"
-                })
-                seg["extra_material_refs"] = [a_mat_id]
-
-                # 音效
-                sfx_file = SFX_DIR / sfx_rel
-                if sfx_file.exists():
-                    sfx_id = str(uuid.uuid4()).upper()
-                    dur_us = 800000
-                    materials_audios.append({
-                        "id": sfx_id,
-                        "name": f"留存音效: {sfx_tag}",
-                        "path": str(sfx_file).replace("\\", "/"),
-                        "type": "sound_effect",
-                        "duration": dur_us
-                    })
-                    sfx_segments.append({
-                        "id": str(uuid.uuid4()).upper(),
-                        "material_id": sfx_id,
-                        "target_timerange": {"start": st, "duration": dur_us},
-                        "source_timerange": {"start": 0, "duration": dur_us},
-                        "speed": 1.0,
-                        "volume": sfx_vol
+                if kw and kw in slice_text:
+                    k_start = slice_text.find(kw)
+                    k_end = k_start + len(kw)
+                    styles.append({
+                        "fill": {"alpha": 1.0, "content": {"render_type": "solid", "solid": {"alpha": 1.0, "color": [1.0, 0.88, 0.15]}}},
+                        "font": {"id": YANSONG_ID, "path": YANSONG_PATH},
+                        "size": 15.5,
+                        "bold": True,
+                        "shadows": SHADOW_SPEC,
+                        "range": [k_start, k_end]
                     })
 
-        # 6. 重组材料与轨道 (1视频 + 1字幕 + 1音效)
-        data["materials"]["texts"] = materials_texts
+                new_c_dict = {"text": slice_text, "styles": styles}
+                new_m_obj = {
+                    "id": mat_id,
+                    "type": "text",
+                    "content": json.dumps(new_c_dict, ensure_ascii=False),
+                    "font_title": "研宋体",
+                    "font_id": "4010355",
+                    "font_resource_id": YANSONG_ID,
+                    "font_path": YANSONG_PATH,
+                    "font_size": 13.0,
+                    "border_width": 0.0,
+                    "has_shadow": True,
+                    "shadow_alpha": 0.6,
+                    "shadow_color": "#000000",
+                    "shadow_diffuse": 0.010031185,
+                    "shadow_distance": 6.0,
+                    "shadow_angle": -60.0,
+                    "background_style": 0,
+                    "check_flag": 39
+                }
+                new_materials_texts.append(new_m_obj)
+
+                extra_refs = []
+                if seg_idx in cue_indices:
+                    anim_key, sfx_rel, sfx_tag, sfx_vol = cue_indices[seg_idx]
+                    anim_info = ANIM_LIB[anim_key]
+                    a_mat_id = str(uuid.uuid4()).upper()
+                    material_animations.append({
+                        "animations": [{
+                            "id": anim_info["id"],
+                            "type": "in",
+                            "start": 0,
+                            "duration": anim_info["dur"],
+                            "resource_id": anim_info["res"],
+                            "name": anim_info["name"]
+                        }],
+                        "id": a_mat_id,
+                        "type": "sticker_animation"
+                    })
+                    extra_refs.append(a_mat_id)
+
+                    sfx_file = SFX_DIR / sfx_rel
+                    if sfx_file.exists():
+                        sfx_id = str(uuid.uuid4()).upper()
+                        materials_audios.append({
+                            "id": sfx_id,
+                            "type": "audio",
+                            "path": str(sfx_file).replace("\\", "/"),
+                            "name": f"留存音效:{anim_info['name']}"
+                        })
+                        sfx_dur = min(slice_dur, 600000)
+                        sfx_segments.append({
+                            "id": str(uuid.uuid4()).upper(),
+                            "material_id": sfx_id,
+                            "target_timerange": {"start": slice_st, "duration": sfx_dur},
+                            "source_timerange": {"start": 0, "duration": sfx_dur},
+                            "speed": 1.0,
+                            "volume": sfx_vol
+                        })
+
+                new_seg_id = str(uuid.uuid4()).upper()
+                new_sub_segments.append({
+                    "id": new_seg_id,
+                    "material_id": mat_id,
+                    "target_timerange": {"start": slice_st, "duration": slice_dur},
+                    "source_timerange": {"start": 0, "duration": slice_dur},
+                    "speed": 1.0,
+                    "volume": 1.0,
+                    "clip": {"transform": {"x": 0.0, "y": y_pos}},
+                    "extra_material_refs": extra_refs
+                })
+                seg_idx += 1
+
+        text_track["segments"] = new_sub_segments
+        data["materials"]["texts"] = new_materials_texts
         data["materials"]["material_animations"] = material_animations
         data["materials"]["audios"] = materials_audios
-
         final_tracks = [video_track, text_track]
         if sfx_segments:
             final_tracks.append({
